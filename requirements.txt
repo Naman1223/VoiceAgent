@@ -1,0 +1,11 @@
+SpeechRecognition 
+pyttsx3
+pyaudio
+ollama
+openai
+python-dotenv
+requests
+websockets
+openwakeword
+onnxruntime
+faster-whisper
