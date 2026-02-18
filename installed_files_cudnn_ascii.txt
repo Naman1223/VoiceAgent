@@ -1,0 +1,28 @@
+Name: nvidia-cudnn-cu12
+Version: 9.19.0.56
+Location: C:\Projects\VOICECHAT\.venv\Lib\site-packages
+Requires: nvidia-cublas-cu12
+Required-by:
+Files:
+  nvidia/cudnn/bin/cudnn64_9.dll
+  nvidia/cudnn/bin/cudnn_adv64_9.dll
+  nvidia/cudnn/bin/cudnn_cnn64_9.dll
+  nvidia/cudnn/bin/cudnn_engines_precompiled64_9.dll
+  nvidia/cudnn/bin/cudnn_engines_runtime_compiled64_9.dll
+  nvidia/cudnn/bin/cudnn_graph64_9.dll
+  nvidia/cudnn/bin/cudnn_heuristic64_9.dll
+  nvidia/cudnn/bin/cudnn_ops64_9.dll
+  nvidia/cudnn/include/cudnn.h
+  nvidia/cudnn/include/cudnn_adv.h
+  nvidia/cudnn/include/cudnn_backend.h
+  nvidia/cudnn/include/cudnn_cnn.h
+  nvidia/cudnn/include/cudnn_graph.h
+  nvidia/cudnn/include/cudnn_ops.h
+  nvidia/cudnn/include/cudnn_version.h
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/INSTALLER
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/METADATA
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/RECORD
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/REQUESTED
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/WHEEL
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/licenses/License.txt
+  nvidia_cudnn_cu12-9.19.0.56.dist-info/top_level.txt

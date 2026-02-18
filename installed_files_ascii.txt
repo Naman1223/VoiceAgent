@@ -1,0 +1,22 @@
+Name: nvidia-cublas-cu12
+Version: 12.9.1.4
+Location: C:\Projects\VOICECHAT\.venv\Lib\site-packages
+Requires:
+Required-by: nvidia-cudnn-cu12
+Files:
+  nvidia/cublas/bin/cublas64_12.dll
+  nvidia/cublas/bin/cublasLt64_12.dll
+  nvidia/cublas/bin/nvblas64_12.dll
+  nvidia/cublas/include/cublas.h
+  nvidia/cublas/include/cublasLt.h
+  nvidia/cublas/include/cublasXt.h
+  nvidia/cublas/include/cublas_api.h
+  nvidia/cublas/include/cublas_v2.h
+  nvidia/cublas/include/nvblas.h
+  nvidia_cublas_cu12-12.9.1.4.dist-info/INSTALLER
+  nvidia_cublas_cu12-12.9.1.4.dist-info/METADATA
+  nvidia_cublas_cu12-12.9.1.4.dist-info/RECORD
+  nvidia_cublas_cu12-12.9.1.4.dist-info/REQUESTED
+  nvidia_cublas_cu12-12.9.1.4.dist-info/WHEEL
+  nvidia_cublas_cu12-12.9.1.4.dist-info/licenses/License.txt
+  nvidia_cublas_cu12-12.9.1.4.dist-info/top_level.txt
