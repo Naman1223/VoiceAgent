@@ -7,29 +7,46 @@ from operator import add
 from langchain_ollama import ChatOllama
 import os
 from Server import stop , server
+
+from tools.basic_tools import tools
+from langgraph.prebuilt import ToolNode, tools_condition
+
 server()
 transcribe = listner.transcription
 
+
+from operator import add
+from typing import Annotated, List
+
 class state(TypedDict):
-    message: Dict[str, Any] 
+    messages: Annotated[List[Any], add]
     response: str
-    
 
 
 def ollama_node(state: state):
-    user_input = transcription()
-    if user_input:
-        chat = ChatOllama(model="llama3.1")
-        response = chat.invoke(user_input)
-        print(f"Punisher :{response.content}")
-        return {"response": response.content}
-    return {"response": "No input detected"}
+    if not state.get("messages"):
+        user_input = transcription()
+        if not user_input:
+             return {"response": "No input detected"}
+        messages = [{"role": "user", "content": user_input}]
+    else:
+        messages = state["messages"]
+
+    chat = ChatOllama(model="llama3.1")
+    model_with_tools = chat.bind_tools(tools)
+    response = model_with_tools.invoke(messages)
+    print(f"Punisher :{response.content}")
+    return {"messages": [response], "response": response.content}
 
 graph = StateGraph(state)
 graph.add_node("ollama", ollama_node)
+graph.add_node("tools", ToolNode(tools))
+
 graph.add_edge(START, "ollama")
-graph.add_edge("ollama", END)
+graph.add_conditional_edges("ollama", tools_condition)
+graph.add_edge("tools", "ollama")
+
 app = graph.compile()
-app.invoke({"message": {}, "response": {}})
+app.invoke({"messages": [], "response": ""})
 
 stop()
