@@ -11,3 +11,11 @@ onnxruntime
 faster-whisper
 nvidia-cublas-cu12
 nvidia-cudnn-cu12
+langgraph
+langchain
+langchain-ollama
+langchain-mcp-adapters
+mcp
+langchain_ollama
+langchain_core
+langchain_google_genai
