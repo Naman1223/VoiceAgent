@@ -55,7 +55,7 @@ def transcription():
                     if silence_start_time is None:
                         silence_start_time = time.time()
                     elif time.time() - silence_start_time > SILENCE_LIMIT:
-                        print("\nSilence detected. Stopping...")
+                        print("\n...")
                         break
                 else:
                     silence_start_time = None
@@ -92,7 +92,7 @@ def transcription():
                 print(f"Error: {e}")
                 
     except KeyboardInterrupt:
-        print("\nStopping...")
+        print("\n...")
 
     finally:
         if audio_buffer:

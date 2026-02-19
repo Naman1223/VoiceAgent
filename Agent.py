@@ -5,19 +5,31 @@ from typing import Dict, Any , Annotated
 from typing_extensions import TypedDict
 from operator import add
 from langchain_ollama import ChatOllama
-
-
+import os
+from Server import stop , server
+server()
 transcribe = listner.transcription
+
 class state(TypedDict):
-    message: Annotated[str, add]
+    message: Dict[str, Any] 
+    response: str
     
 
-def ollama_node(state:state):
+
+def ollama_node(state: state):
     user_input = transcription()
     if user_input:
         chat = ChatOllama(model="llama3.1")
         response = chat.invoke(user_input)
         print(f"Punisher :{response.content}")
-    return {"message": response.content}
+        return {"response": response.content}
+    return {"response": "No input detected"}
 
-ollama_node(state)
+graph = StateGraph(state)
+graph.add_node("ollama", ollama_node)
+graph.add_edge(START, "ollama")
+graph.add_edge("ollama", END)
+app = graph.compile()
+app.invoke({"message": {}, "response": {}})
+
+stop()
