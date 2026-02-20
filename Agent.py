@@ -7,11 +7,12 @@ from operator import add
 from langchain_ollama import ChatOllama
 import os
 from Server import server
-
+import threading
 from tools.basic_tools import tools
 from langgraph.prebuilt import ToolNode, tools_condition
 
-server()
+t = threading.Thread(target=server())
+t.start()
 transcribe = listner.transcription
 
 

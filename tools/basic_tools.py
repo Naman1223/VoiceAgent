@@ -80,4 +80,13 @@ def terminal(command: str) -> str:
     except Exception as e:
         return f"Failed to execute command: {str(e)}"
 
-tools = [add, sub, mul, div, create_folder, delete_file, terminal]
+@tool
+def apps(command:str) -> str:
+    """open apps."""
+    try:
+        result = os.system("start " + command)
+        return f"Command '{command}' executed successfully."
+    except Exception as e:
+        return f"Failed to execute command: {str(e)}"
+
+tools = [add, sub, mul, div, create_folder, delete_file, terminal, apps]
