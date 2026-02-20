@@ -1,15 +1,21 @@
 import os
 import requests
+import subprocess
+import time
 
 def server():
-   response = requests.get("http://localhost:11434/")
-   if response.status_code == 200 and "Ollama is running" in response.text:
+    url = "http://127.0.0.1:11434"
+    try:
+        response = requests.get(url, timeout=2)
+        if response.status_code == 200 and "Ollama is running" in response.text:
+            return
+    except requests.exceptions.ConnectionError:
+        subprocess.Popen(["ollama", "serve"], shell=True)
+        time.sleep(5) 
+
+def stop_model(model_name="llama3.1"):
+    try:
+        subprocess.run(["ollama", "stop", model_name], check=True)
+    except subprocess.CalledProcessError:
         pass
-   else:
-        os.system("ollama serve")
 
-        
-   
-
-def stop():
-    os.system("ollama stop llama3.1")

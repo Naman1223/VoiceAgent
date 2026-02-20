@@ -15,7 +15,7 @@ if sys.platform == "win32":
         except ImportError:
             print("NVIDIA libraries not found. GPU acceleration might fail.")
 
-model_size = "medium"
+model_size = "large-v3-turbo"
 
 model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
