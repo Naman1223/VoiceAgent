@@ -9,6 +9,9 @@ from Server import server
 import threading
 from tools.basic_tools import tools
 from langgraph.prebuilt import ToolNode, tools_condition
+from kokoro import KPipeline
+import sounddevice as sd
+import soundfile as sf
 
 t = threading.Thread(target=server())
 t.start()
@@ -67,5 +70,14 @@ graph.add_conditional_edges("ollama", should_continue)
 graph.add_edge("tools", "ollama")
 
 app = graph.compile()
-app.invoke({"messages": [], "response": ""})
 
+
+pipeline = KPipeline(lang_code='a')
+generator = pipeline(app.invoke({"messages": [], "response": ""})['response'], voice='af_heart')
+for i, (gs, ps, audio) in enumerate(generator):
+    print(f"Segment {i}: {gs}")
+    sd.play(audio, samplerate=24000)
+    sd.wait()
+    
+
+   
