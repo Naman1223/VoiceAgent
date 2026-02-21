@@ -1,2 +1,0 @@
-content: ''
-tool_calls: [{'name': 'create_folder', 'args': {'folder_name': 'Naman'}, 'id': '932e4f48-113f-4123-ac88-6f79243ff842', 'type': 'tool_call'}, {'name': 'delete_file', 'args': {'file_path': '/Naman'}, 'id': 'edcd4872-27f9-487c-a388-ad5255a9c765', 'type': 'tool_call'}]

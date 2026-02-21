@@ -1,5 +1,4 @@
 from langgraph.graph import StateGraph , END, START
-import listner
 from listner import transcription
 from typing import Dict, Any , Annotated
 from typing_extensions import TypedDict
@@ -13,7 +12,6 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 t = threading.Thread(target=server())
 t.start()
-transcribe = listner.transcription
 
 
 from operator import add
@@ -26,17 +24,17 @@ class state(TypedDict):
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+def transcribe_node(state: state):
+    user_input = transcription()
+    if not user_input:
+        return {"response": "No input detected"}
+    user_msg = HumanMessage(content=user_input)
+    return {"messages": [user_msg]}
+
 def ollama_node(state: state):
-    is_first_message = not state.get("messages")
-    
-    if is_first_message:
-        user_input = transcription()
-        if not user_input:
-             return {"response": "No input detected"}
-        user_msg = HumanMessage(content=user_input)
-        messages = [user_msg]
-    else:
-        messages = state["messages"]
+    messages = state.get("messages", [])
+    if not messages:
+        return {"response": "No messages to process"}
 
     chat = ChatOllama(model="llama3.1", temperature=0)
     model_with_tools = chat.bind_tools(tools)
@@ -47,17 +45,14 @@ def ollama_node(state: state):
     if response.content:
         print(f"Punisher :{response.content}")
     
-
-    if is_first_message:
-        return {"messages": [user_msg, response], "response": response.content}
-    else:
-        return {"messages": [response], "response": response.content}
+    return {"messages": [response], "response": response.content}
 
 graph = StateGraph(state)
+graph.add_node("transcribe", transcribe_node)
 graph.add_node("ollama", ollama_node)
 graph.add_node("tools", ToolNode(tools))
 
-graph.add_edge(START, "ollama")
+graph.add_edge(START, "transcribe")
 def should_continue(state: state):
     messages = state.get("messages", [])
     if not messages:
@@ -67,7 +62,7 @@ def should_continue(state: state):
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
     return END
-
+graph.add_edge("transcribe", "ollama")
 graph.add_conditional_edges("ollama", should_continue)
 graph.add_edge("tools", "ollama")
 

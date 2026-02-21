@@ -921,6 +921,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ir"
+version = "0.0.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/26/e1617a3d3acc73b88df7363156dded48f76cd70cc6a7f122072f088e436e/ir-0.0.6.tar.gz", hash = "sha256:4cd727aabb816ede6ffcaddb37474cc09f30e8996709b5e5c0625b2adda6a0f6", size = 7949, upload-time = "2025-05-23T07:25:10.764Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/a6/2e0aedd3dbc911f57f4a13b1f79700d291c09b948881003dad986e613073/ir-0.0.6-py3-none-any.whl", hash = "sha256:bda0f9138356479e43727fe43147d6f092367f7b3a1364f52036f6acb73da40f", size = 8308, upload-time = "2025-05-23T07:25:09.738Z" },
+]
+
+[[package]]
 name = "jiter"
 version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5323,6 +5332,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "faster-whisper" },
+    { name = "ir" },
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-core" },
@@ -5348,6 +5358,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "faster-whisper", specifier = ">=1.2.1" },
+    { name = "ir", specifier = ">=0.0.6" },
     { name = "langchain", specifier = ">=1.2.10" },
     { name = "langchain-community", specifier = ">=0.4.1" },
     { name = "langchain-core", specifier = ">=1.2.13" },

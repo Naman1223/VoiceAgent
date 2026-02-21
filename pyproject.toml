@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "faster-whisper>=1.2.1",
+    "ir>=0.0.6",
+    "kokoro>=0.9.2",
     "langchain>=1.2.10",
     "langchain-community>=0.4.1",
     "langchain-core>=1.2.13",
@@ -22,8 +24,11 @@ dependencies = [
     "openwakeword>=0.4.0",
     "pyaudio>=0.2.14",
     "python-dotenv>=1.2.1",
+    "pytorch",
     "pyttsx3>=2.99",
     "requests>=2.32.5",
+    "soundfile",
     "speechrecognition>=3.14.5",
+    "torch>=2.10.0",
     "websockets>=16.0",
 ]

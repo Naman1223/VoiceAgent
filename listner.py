@@ -4,6 +4,7 @@ import time
 import numpy as np
 import pyaudio
 from faster_whisper import WhisperModel
+from langgraph.graph import StateGraph , END, START
 
 
 if sys.platform == "win32":
