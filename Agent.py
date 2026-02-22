@@ -39,23 +39,16 @@ def ollama_node(state: state):
     if not messages:
         return {"response": "No messages to process"}
 
-    chat = ChatOllama(model="llama3.1", temperature=1)
+    chat = ChatOllama(model="llama3.1", temperature=0.3)
     model_with_tools = chat.bind_tools(tools)
     
-    sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat, answer questions, and discuss various topics openly with the user. You also have access to tools to perform tasks for the user if requested. When using a tool, confirm the action naturally. Keep your spoken responses concise enough for voice generation, but feel free to be expressive, helpful, and conversational. NEVER output JSON, markdown, or raw tool schemas in your response.")
+    sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
     response = model_with_tools.invoke([sys_prompt] + messages)
     
     if response.content:
         print(f"Punisher :{response.content}")
     
     return {"messages": [response], "response": response.content}
-    
-    response_text = response.content
-    if response_text:
-        generator = pipeline(response_text, voice='af_heart')
-        for i, (gs, ps, audio) in enumerate(generator):
-            sd.play(audio, samplerate=24000)
-            sd.wait()
 
 def should_continue(state: state):
     messages = state.get("messages", [])

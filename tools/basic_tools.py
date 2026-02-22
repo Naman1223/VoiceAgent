@@ -46,15 +46,6 @@ def create_folder(folder_name: str, directory_path: str = "Desktop") -> str:
     except Exception as e:
         return f"Failed to create folder: {str(e)}"
 
-    """Create a folder or file an a Location on the Drive"""
-    try:
-        os.makedirs(folder_name_path, exist_ok=True)
-        return f"Folder '{folder_name_path}' created successfully."
-    except Exception as e:
-        return f"Error creating '{folder_name_path}': {str(e)}"
-
-
-
 @tool
 def delete_file(file_path: str) -> str:
     """Delete a folder or file."""
