@@ -10,8 +10,13 @@ def server():
         if response.status_code == 200 and "Ollama is running" in response.text:
             return
     except requests.exceptions.ConnectionError:
-        subprocess.Popen(["ollama", "serve"], shell=True)
-        time.sleep(5) 
+        subprocess.Popen(
+    ["ollama", "serve"],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL,
+    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+)
+        time.sleep(2) 
 
 def stop_model(model_name="llama3.1"):
     try:
