@@ -49,13 +49,6 @@ def ollama_node(state: state):
         print(f"Punisher :{response.content}")
     
     return {"messages": [response], "response": response.content}
-
-graph = StateGraph(state)
-graph.add_node("transcribe", transcribe_node)
-graph.add_node("ollama", ollama_node)
-graph.add_node("tools", ToolNode(tools))
-
-graph.add_edge(START, "transcribe")
 def should_continue(state: state):
     messages = state.get("messages", [])
     if not messages:
@@ -65,19 +58,44 @@ def should_continue(state: state):
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
     return END
+
+graph = StateGraph(state)
+graph.add_node("transcribe", transcribe_node)
+graph.add_node("ollama", ollama_node)
+graph.add_node("tools", ToolNode(tools))
+
+graph.add_edge(START, "transcribe")
 graph.add_edge("transcribe", "ollama")
 graph.add_conditional_edges("ollama", should_continue)
 graph.add_edge("tools", "ollama")
 
 app = graph.compile()
 
-
 pipeline = KPipeline(lang_code='a')
-generator = pipeline(app.invoke({"messages": [], "response": ""})['response'], voice='af_heart')
-for i, (gs, ps, audio) in enumerate(generator):
-    print(f"Segment {i}: {gs}")
-    sd.play(audio, samplerate=24000)
-    sd.wait()
-    
 
-   
+conversation_state = {"messages": [], "response": ""}
+
+print("Starting conversation loop. Say 'exit', 'bye', or 'quit' to end.")
+
+while True:
+    # Run one pass of the graph
+    result = app.invoke(conversation_state)
+    
+    # Update conversation history
+    conversation_state["messages"] = result["messages"]
+    
+    # Check if user wanted to exit
+    user_msgs = [m for m in result["messages"] if isinstance(m, HumanMessage)]
+    if user_msgs:
+        last_user_text = user_msgs[-1].content.lower().strip()
+        if any(word in last_user_text for word in ["exit", "bye", "goodbye", "quit"]):
+            print("Exiting conversation.")
+            break
+            
+    # Speak the response
+    response_text = result.get('response', '')
+    if response_text:
+        generator = pipeline(response_text, voice='af_heart')
+        for i, (gs, ps, audio) in enumerate(generator):
+            sd.play(audio, samplerate=24000)
+            sd.wait()
