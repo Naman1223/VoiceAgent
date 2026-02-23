@@ -2,6 +2,10 @@ from langchain_community.tools import tool
 import os 
 import shutil
 from pathlib import Path
+import asyncio
+from langchain_core.tools import tool
+from langchain_community.chat_models import ChatOllama
+from browser_use import Agent, Browser
 
 @tool
 def add(a: int, b: int) -> int:
@@ -80,4 +84,61 @@ def apps(command:str) -> str:
     except Exception as e:
         return f"Failed to execute command: {str(e)}"
 
-tools = [add, sub, mul, div, create_folder, delete_file, terminal, apps]
+import asyncio
+from langchain_core.tools import tool
+from langchain_ollama import ChatOllama
+from browser_use import Agent, Browser
+
+import asyncio
+from langchain_ollama import ChatOllama
+from browser_use import Agent, Browser
+
+@tool
+def browser_tool(url: str):
+    """
+    Opens a visible Chrome window and navigates to a URL using a local LLM.
+    """
+    # Initialize the LLM
+    llm = ChatOllama(model="hermes3:8b", temperature=0.3)
+    
+    # Ensure provider attribute exists for compatibility
+    try:
+        if not hasattr(llm, 'provider'):
+            setattr(llm, 'provider', 'ollama')
+    except ValueError:
+        pass
+
+    async def run_browser():
+        # Initialize browser within the async function to manage lifecycle
+        browser_inst = Browser(headless=False, disable_security=True)
+        try:
+            agent = Agent(
+                task=f"Go to {url}, wait for the page to load, and summarize the top headline or main content.",
+                llm=llm,
+                browser=browser_inst
+            )
+            result = await agent.run()
+            return result
+        finally:
+            await browser_inst.close()
+
+    try:
+        # Handling the event loop for various environments
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            import nest_asyncio
+            nest_asyncio.apply()
+            # If the loop is already running, we run the coroutine directly
+            return asyncio.gather(run_browser()) 
+        else:
+            return asyncio.run(run_browser())
+
+    except Exception as e:
+        return f"Error accessing the browser: {str(e)}"
+
+tools = [add, sub, mul, div, create_folder, delete_file, terminal, apps, browser_tool]

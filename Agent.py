@@ -14,7 +14,7 @@ import sounddevice as sd
 import soundfile as sf
 import subprocess
 
-t = threading.Thread(target=server())
+t = threading.Thread(target=server)
 t.start()
 
 
@@ -40,11 +40,20 @@ def ollama_node(state: state):
     if not messages:
         return {"response": "No messages to process"}
 
-    chat = ChatOllama(model="hermes3:8b", temperature=0.3,stream=True)
+    # -- Conversational Memory Management --
+    # Keep the last 10 messages so the LLM context window isn't exhausted.
+    recent_messages = messages[-10:]
+    
+    # Ensure we don't start with an orphaned ToolMessage (which lacks its calling AIMessage).
+    while recent_messages and recent_messages[0].type == "tool":
+        recent_messages.pop(0)
+    # --------------------------------------
+
+    chat = ChatOllama(model="hermes3:8b", temperature=0.3, stream=True)
     model_with_tools = chat.bind_tools(tools)
     
     sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
-    response = model_with_tools.invoke([sys_prompt] + messages)
+    response = model_with_tools.invoke([sys_prompt] + recent_messages)
     response_text = response.content
     print(f"Punisher :{response_text}")
     if response_text:
@@ -84,19 +93,16 @@ conversation_state = {"messages": [], "response": ""}
 print("Starting conversation loop. Say 'exit', 'bye', or 'quit' to end.")
 
 while True:
-    # Run one pass of the graph
     result = app.invoke(conversation_state)
     
-    # Update conversation history
     conversation_state["messages"] = result["messages"]
     
-    # Check if user wanted to exit
     user_msgs = [m for m in result["messages"] if isinstance(m, HumanMessage)]
     if user_msgs:
         last_user_text = user_msgs[-1].content.lower().strip()
         if any(word in last_user_text for word in ["exit", "bye", "goodbye", "quit"]):
             print("Exiting conversation.")
-            subprocess.Popen(["ollama", "stop", "llama3.1"], stdout=subprocess.DEVNULL, 
+            subprocess.Popen(["ollama", "stop", "hermes3:8b"], stdout=subprocess.DEVNULL, 
             stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             break
 
