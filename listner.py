@@ -16,7 +16,7 @@ if sys.platform == "win32":
         except ImportError:
             print("NVIDIA libraries not found. GPU acceleration might fail.")
 
-model_size = "large-v3-turbo"
+model_size = "small.en"
 
 model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
@@ -80,6 +80,7 @@ def transcription():
                         beam_size=5,
                         vad_filter=True,
                         vad_parameters=dict(min_silence_duration_ms=500),
+                        initial_prompt="You are speaking in English",
                         condition_on_previous_text=False
                     )
 

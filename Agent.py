@@ -12,6 +12,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from kokoro import KPipeline
 import sounddevice as sd
 import soundfile as sf
+import subprocess
 
 t = threading.Thread(target=server())
 t.start()
@@ -39,14 +40,18 @@ def ollama_node(state: state):
     if not messages:
         return {"response": "No messages to process"}
 
-    chat = ChatOllama(model="llama3.1", temperature=0.3)
+    chat = ChatOllama(model="hermes3:8b", temperature=0.3,stream=True)
     model_with_tools = chat.bind_tools(tools)
     
     sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
     response = model_with_tools.invoke([sys_prompt] + messages)
-    
-    if response.content:
-        print(f"Punisher :{response.content}")
+    response_text = response.content
+    print(f"Punisher :{response_text}")
+    if response_text:
+        generator = pipeline(response_text, voice='af_heart',speed=1.2,split_pattern=r'\n+')
+        for i, (gs, ps, audio) in enumerate(generator):
+            sd.play(audio, samplerate=24000)
+            sd.wait()
     
     return {"messages": [response], "response": response.content}
 
@@ -91,12 +96,8 @@ while True:
         last_user_text = user_msgs[-1].content.lower().strip()
         if any(word in last_user_text for word in ["exit", "bye", "goodbye", "quit"]):
             print("Exiting conversation.")
+            subprocess.Popen(["ollama", "stop", "llama3.1"], stdout=subprocess.DEVNULL, 
+            stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             break
+
             
-    # Speak the response
-    response_text = result.get('response', '')
-    if response_text:
-        generator = pipeline(response_text, voice='af_heart')
-        for i, (gs, ps, audio) in enumerate(generator):
-            sd.play(audio, samplerate=24000)
-            sd.wait()
