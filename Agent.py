@@ -53,16 +53,73 @@ def ollama_node(state: state):
     model_with_tools = chat.bind_tools(tools)
     
     sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
-    response = model_with_tools.invoke([sys_prompt] + recent_messages)
-    response_text = response.content
-    print(f"Punisher :{response_text}")
-    if response_text:
-        generator = pipeline(response_text, voice='af_heart',speed=1.2,split_pattern=r'\n+')
-        for i, (gs, ps, audio) in enumerate(generator):
-            sd.play(audio, samplerate=24000)
-            sd.wait()
+    import queue
+    import threading
     
-    return {"messages": [response], "response": response.content}
+    response_stream = model_with_tools.stream([sys_prompt] + recent_messages)
+    response_text = ""
+    accumulated_message = None
+
+    audio_queue = queue.Queue()
+
+    def audio_worker():
+        while True:
+            text_chunk = audio_queue.get()
+            if text_chunk is None:
+                break
+            if text_chunk.strip():
+                try:
+                    generator = pipeline(text_chunk.strip(), voice='af_heart', speed=1.3, split_pattern=r'\n+')
+                    for i, (gs, ps, audio) in enumerate(generator):
+                        sd.play(audio, samplerate=24000)
+                        sd.wait()
+                except Exception as e:
+                    pass
+            audio_queue.task_done()
+
+    # Start background thread to process audio
+    audio_thread = threading.Thread(target=audio_worker)
+    audio_thread.start()
+
+    current_sentence = ""
+    print("Punisher: ", end="", flush=True)
+
+    for chunk in response_stream:
+        if chunk.content:
+            text_piece = chunk.content
+            print(text_piece, end="", flush=True)
+            response_text += text_piece
+            current_sentence += text_piece
+            
+            # If we hit punctuation, send the sentence to the audio thread
+            if any(p in text_piece for p in ['.', '!', '?', '\n']):
+                last_punct_idx = max(
+                    current_sentence.rfind('.'), 
+                    current_sentence.rfind('!'), 
+                    current_sentence.rfind('?'), 
+                    current_sentence.rfind('\n')
+                )
+                if last_punct_idx != -1:
+                    chunk_to_play = current_sentence[:last_punct_idx+1]
+                    audio_queue.put(chunk_to_play)
+                    current_sentence = current_sentence[last_punct_idx+1:]
+
+        if accumulated_message is None:
+            accumulated_message = chunk
+        else:
+            accumulated_message += chunk
+
+    print() # Newline after response
+
+    # Send any remaining words
+    if current_sentence.strip():
+        audio_queue.put(current_sentence)
+
+    # Gracefully stop the audio worker and wait for it to finish speaking
+    audio_queue.put(None)
+    audio_thread.join()
+    
+    return {"messages": [accumulated_message], "response": response_text}
 
 def should_continue(state: state):
     messages = state.get("messages", [])
