@@ -38,7 +38,8 @@ TOOL_KEYWORDS = {
     "timer", "alarm", "set", "turn on", "turn off", "light",
     "play", "search", "find", "open", "calculate", "convert",
     "create", "delete", "folder", "file", "run", "terminal",
-    "browser", "website", "navigate", "go to", "look up", "Database", "Memory", "ChatHistory"
+    "browser", "website", "navigate", "go to", "look up", "Database", "Memory", "ChatHistory",
+     "ingest", "search","knowledge base", "ingest documents", "search knowledge base", "open file"
 }
 
 def needs_tool_call(messages: list) -> bool:
@@ -69,7 +70,7 @@ def ollama_node(state: state):
     messages = state.get("messages", [])
     if not messages:
         return {"response": "No messages to process"}
-    recent_messages = messages[-1:]
+    recent_messages = messages[-10:]
     
     # Ensure we don't start with an orphaned ToolMessage (which lacks its calling AIMessage).
     while recent_messages and recent_messages[0].type == "tool":
@@ -198,5 +199,3 @@ while True:
             subprocess.Popen(["ollama", "stop", "Punisher:latest"], stdout=subprocess.DEVNULL, 
             stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             break
-
-            

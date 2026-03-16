@@ -25,7 +25,7 @@ model = WhisperModel(model_size, device="cuda", compute_type="float16")
 RATE = 16000
 CHUNK_DURATION = 0.5 
 CHUNK = int(RATE * CHUNK_DURATION) 
-TRANSCRIPTION_INTERVAL = 3 
+TRANSCRIPTION_INTERVAL = 4 
 SILENCE_THRESHOLD = 0.03
 SILENCE_LIMIT = 2  
 
