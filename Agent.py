@@ -27,6 +27,34 @@ class state(TypedDict):
 
 
 from langchain_core.messages import HumanMessage, SystemMessage
+import queue
+
+# Simple keyword-based intent check — no extra model needed
+TOOL_KEYWORDS = {
+    "weather", "temperature", "forecast", "rain", "sunny",
+    "calendar", "schedule", "meeting", "reminder", "appointment",
+    "timer", "alarm", "set", "turn on", "turn off", "light",
+    "play", "search", "find", "open", "calculate", "convert",
+    "create", "delete", "folder", "file", "run", "terminal",
+    "browser", "website", "navigate", "go to", "look up",
+}
+
+def needs_tool_call(messages: list) -> bool:
+    """Check if the latest human message likely needs a tool."""
+    # Always bind tools if re-entering after a tool result
+    for m in reversed(messages):
+        if m.type == "tool":
+            return True
+        if m.type == "human":
+            text = m.content.lower()
+            return any(kw in text for kw in TOOL_KEYWORDS)
+    return False
+
+
+chat = ChatOllama(model="punisher:latest", temperature=0.3, keep_alive=-1)
+model_with_tools = chat.bind_tools(tools)  
+model_plain = chat
+
 
 def transcribe_node(state: state):
     user_input = transcription()
@@ -39,24 +67,18 @@ def ollama_node(state: state):
     messages = state.get("messages", [])
     if not messages:
         return {"response": "No messages to process"}
-
-    # -- Conversational Memory Management --
-    # Keep the last 10 messages so the LLM context window isn't exhausted.
     recent_messages = messages[-10:]
     
     # Ensure we don't start with an orphaned ToolMessage (which lacks its calling AIMessage).
     while recent_messages and recent_messages[0].type == "tool":
         recent_messages.pop(0)
-    # --------------------------------------
 
-    chat = ChatOllama(model="hermes3:8b", temperature=0.3, stream=True)
-    model_with_tools = chat.bind_tools(tools)
-    
+    use_tools = needs_tool_call(recent_messages)
+    model = model_with_tools if use_tools else model_plain
+
     sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
-    import queue
-    import threading
     
-    response_stream = model_with_tools.stream([sys_prompt] + recent_messages)
+    response_stream = model.stream([sys_prompt] + recent_messages)
     response_text = ""
     accumulated_message = None
 
@@ -91,7 +113,7 @@ def ollama_node(state: state):
             current_sentence += text_piece
             
             # If we hit punctuation, send the chunk to the audio thread
-            punctuations = ['.', '!', '?', '\n', ',', ';', ':']
+            punctuations = ['.', '!', '?']
             if any(p in text_piece for p in punctuations):
                 last_punct_idx = max([current_sentence.rfind(p) for p in punctuations])
                 if last_punct_idx != -1:
@@ -128,6 +150,10 @@ def should_continue(state: state):
     # Check if there are tool calls to invoke
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "tools"
+    # Safety net: catch edge cases where intent check missed a tool need
+    # and the model emitted a raw JSON-like tool attempt in its content.
+    if hasattr(last_message, "content") and '{"name"' in str(last_message.content):
+        return "tools"
     return END
 
 graph = StateGraph(state)
@@ -140,9 +166,15 @@ graph.add_edge("transcribe", "ollama")
 graph.add_conditional_edges("ollama", should_continue)
 graph.add_edge("tools", "ollama")
 
+kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+try:
+    kokoro.create("Hello.", voice='af_heart', speed=1.5, lang="en-us")
+except Exception:
+    pass
+
 app = graph.compile()
 
-kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+
 
 conversation_state = {"messages": [], "response": ""}
 
@@ -151,7 +183,7 @@ print("Starting conversation loop. Say 'exit', 'bye', or 'quit' to end.")
 while True:
     result = app.invoke(conversation_state)
     
-    conversation_state["messages"] = result["messages"]
+    conversation_state["messages"] = result["messages"][-20:]
     
     user_msgs = [m for m in result["messages"] if isinstance(m, HumanMessage)]
     if user_msgs:

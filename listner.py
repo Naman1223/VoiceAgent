@@ -8,13 +8,13 @@ from langgraph.graph import StateGraph , END, START
 
 
 if sys.platform == "win32":
-        try:
-            import nvidia.cublas
-            import nvidia.cudnn
-            os.add_dll_directory(os.path.join(list(nvidia.cublas.__path__)[0], 'bin'))
-            os.add_dll_directory(os.path.join(list(nvidia.cudnn.__path__)[0], 'bin'))
-        except ImportError:
-            print("NVIDIA libraries not found. GPU acceleration might fail.")
+    try:
+        import nvidia.cublas
+        import nvidia.cudnn
+        os.add_dll_directory(os.path.join(list(nvidia.cublas.__path__)[0], 'bin'))
+        os.add_dll_directory(os.path.join(list(nvidia.cudnn.__path__)[0], 'bin'))
+    except ImportError:
+        print("NVIDIA libraries not found. GPU acceleration might fail.")
 
 model_size = "small.en"
 
@@ -27,7 +27,7 @@ CHUNK_DURATION = 0.5
 CHUNK = int(RATE * CHUNK_DURATION) 
 TRANSCRIPTION_INTERVAL = 3 
 SILENCE_THRESHOLD = 0.03
-SILENCE_LIMIT = 0.8
+SILENCE_LIMIT = 2  
 
 def transcription():
     p = pyaudio.PyAudio()
