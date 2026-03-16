@@ -26,4 +26,6 @@ kokoro-onnx
 browser-use 
 playwright
 sounddevice
-
+chromadb
+langchain-chroma 
+sentence-transformers

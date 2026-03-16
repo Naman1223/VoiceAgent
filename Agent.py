@@ -13,6 +13,8 @@ from kokoro_onnx import Kokoro
 import sounddevice as sd
 import soundfile as sf
 import subprocess
+from VectorDB import save_to_memory , get_relevant_memory
+import uuid
 
 t = threading.Thread(target=server)
 t.start()
@@ -36,7 +38,7 @@ TOOL_KEYWORDS = {
     "timer", "alarm", "set", "turn on", "turn off", "light",
     "play", "search", "find", "open", "calculate", "convert",
     "create", "delete", "folder", "file", "run", "terminal",
-    "browser", "website", "navigate", "go to", "look up",
+    "browser", "website", "navigate", "go to", "look up", "Database", "Memory", "ChatHistory"
 }
 
 def needs_tool_call(messages: list) -> bool:
@@ -51,7 +53,7 @@ def needs_tool_call(messages: list) -> bool:
     return False
 
 
-chat = ChatOllama(model="punisher:latest", temperature=0.3, keep_alive=-1)
+chat = ChatOllama(model="Punisher:latest", temperature=0.3, keep_alive=-1)
 model_with_tools = chat.bind_tools(tools)  
 model_plain = chat
 
@@ -67,7 +69,7 @@ def ollama_node(state: state):
     messages = state.get("messages", [])
     if not messages:
         return {"response": "No messages to process"}
-    recent_messages = messages[-10:]
+    recent_messages = messages[-1:]
     
     # Ensure we don't start with an orphaned ToolMessage (which lacks its calling AIMessage).
     while recent_messages and recent_messages[0].type == "tool":
@@ -140,6 +142,9 @@ def ollama_node(state: state):
     audio_queue.put(None)
     audio_thread.join()
     
+    user_text = messages[-1].content if messages else ""
+    save_to_memory(user_text, response_text)
+    
     return {"messages": [accumulated_message], "response": response_text}
 
 def should_continue(state: state):
@@ -190,7 +195,7 @@ while True:
         last_user_text = user_msgs[-1].content.lower().strip()
         if any(word in last_user_text for word in ["exit", "bye", "goodbye", "quit"]):
             print("Exiting conversation.")
-            subprocess.Popen(["ollama", "stop", "hermes3:8b"], stdout=subprocess.DEVNULL, 
+            subprocess.Popen(["ollama", "stop", "Punisher:latest"], stdout=subprocess.DEVNULL, 
             stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             break
 

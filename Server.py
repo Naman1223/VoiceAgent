@@ -18,7 +18,7 @@ def server():
 )
         time.sleep(2) 
 
-def stop_model(model_name="llama3.1"):
+def stop_model(model_name="Punisher:latest"):
     try:
         subprocess.run(["ollama", "stop", model_name], check=True)
     except subprocess.CalledProcessError:
