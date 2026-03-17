@@ -7,7 +7,7 @@ from langchain_ollama import ChatOllama
 import os
 from Server import server
 import threading
-from tools.basic_tools import tools
+from tools.basic_tools import tools, MATH_TOOLS, FILE_TOOLS, MEMORY_TOOLS
 from langgraph.prebuilt import ToolNode, tools_condition
 from kokoro_onnx import Kokoro
 import sounddevice as sd
@@ -31,32 +31,58 @@ class state(TypedDict):
 from langchain_core.messages import HumanMessage, SystemMessage
 import queue
 
-# Simple keyword-based intent check — no extra model needed
-TOOL_KEYWORDS = {
-    "weather", "temperature", "forecast", "rain", "sunny",
-    "calendar", "schedule", "meeting", "reminder", "appointment",
-    "timer", "alarm", "set", "turn on", "turn off", "light",
-    "play", "search", "find", "open", "calculate", "convert",
-    "create", "delete", "folder", "file", "run", "terminal",
-    "browser", "website", "navigate", "go to", "look up", "Database", "Memory", "ChatHistory",
-     "ingest", "search","knowledge base", "ingest documents", "search knowledge base", "open file"
-}
+# ---------------------------------------------------------------------------
+# Pre-cached model bindings — computed once, reused on every turn.
+# Binding only the relevant tool group keeps the schema payload small.
+# ---------------------------------------------------------------------------
+chat = ChatOllama(model="Punisher:latest", temperature=0.3, keep_alive=-1)
 
-def needs_tool_call(messages: list) -> bool:
-    """Check if the latest human message likely needs a tool."""
-    # Always bind tools if re-entering after a tool result
+model_plain   = chat
+model_math    = chat.bind_tools(MATH_TOOLS)
+model_file    = chat.bind_tools(FILE_TOOLS)
+model_memory  = chat.bind_tools(MEMORY_TOOLS)
+model_all     = chat.bind_tools(tools)   # fallback when intent is ambiguous
+
+# Keyword sets per group
+_MATH_KWS   = {"add", "subtract", "multiply", "divide", "calculate", "plus", "minus", "times", "convert"}
+_FILE_KWS   = {"open", "file", "folder", "create", "delete", "run", "terminal", "command"}
+_MEMORY_KWS = {"memory", "history", "remember", "search", "knowledge", "ingest", "database", "recall", "find", "look up"}
+
+def _get_model_for_intent(messages: list):
+    """Return the tightest pre-cached model binding that covers the user's intent."""
+    # If we are re-entering after a tool result, find out which group ran and reuse it.
+    # This avoids binding all tools on the follow-up turn.
+    last_tool_name = None
     for m in reversed(messages):
         if m.type == "tool":
-            return True
+            last_tool_name = getattr(m, "name", None)
+            break
         if m.type == "human":
-            text = m.content.lower()
-            return any(kw in text for kw in TOOL_KEYWORDS)
-    return False
+            break
 
+    if last_tool_name:
+        if any(t.name == last_tool_name for t in MATH_TOOLS):   return model_math
+        if any(t.name == last_tool_name for t in FILE_TOOLS):   return model_file
+        if any(t.name == last_tool_name for t in MEMORY_TOOLS): return model_memory
+        return model_all
 
-chat = ChatOllama(model="Punisher:latest", temperature=0.3, keep_alive=-1)
-model_with_tools = chat.bind_tools(tools)  
-model_plain = chat
+    # First turn — classify from the human message text
+    last_human = next((m for m in reversed(messages) if m.type == "human"), None)
+    if not last_human:
+        return model_plain
+
+    text = last_human.content.lower()
+    wants_math   = any(k in text for k in _MATH_KWS)
+    wants_file   = any(k in text for k in _FILE_KWS)
+    wants_memory = any(k in text for k in _MEMORY_KWS)
+
+    active = sum([wants_math, wants_file, wants_memory])
+    if active == 0:  return model_plain    # pure conversation — zero schema overhead
+    if active == 1:
+        if wants_math:   return model_math
+        if wants_file:   return model_file
+        if wants_memory: return model_memory
+    return model_all   # multi-intent — bind everything
 
 
 def transcribe_node(state: state):
@@ -76,8 +102,7 @@ def ollama_node(state: state):
     while recent_messages and recent_messages[0].type == "tool":
         recent_messages.pop(0)
 
-    use_tools = needs_tool_call(recent_messages)
-    model = model_with_tools if use_tools else model_plain
+    model = _get_model_for_intent(recent_messages)
 
     sys_prompt = SystemMessage(content="You are Punisher, a friendly, intelligent, and conversational AI voice assistant. You love to chat and answer questions openly. You also have access to tools. If the user asks you to perform a task, use the appropriate tool. IMPORTANT: Tool execution must be done behind the scenes! NEVER output raw JSON, markdown blocks, {\"name\": ...} payloads, or raw tool schemas in your spoken response. Just confirm what you did naturally and concisely.")
     
@@ -143,8 +168,11 @@ def ollama_node(state: state):
     audio_queue.put(None)
     audio_thread.join()
     
-    user_text = messages[-1].content if messages else ""
-    save_to_memory(user_text, response_text)
+    if response_text.strip():
+        # Find the last actual human message (not a tool result)
+        last_human = next((m for m in reversed(messages) if m.type == "human"), None)
+        user_text = last_human.content if last_human else ""
+        save_to_memory(user_text, response_text)
     
     return {"messages": [accumulated_message], "response": response_text}
 
