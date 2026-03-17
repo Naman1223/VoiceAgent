@@ -8,5 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
+
+
 chroma_memory/
 chroma_docs/
+*.mp4
