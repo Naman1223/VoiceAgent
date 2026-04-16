@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+@theme {
+  /* Design System Colors */
+  --color-surface: #f9f9f9;
+  --color-surface-bright: #f9f9f9;
+  --color-surface-dim: #dadada;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f3f3;
+  --color-surface-container: #eeeeee;
+  --color-surface-container-high: #e8e8e8;
+  --color-surface-container-highest: #e2e2e2;
+  --color-surface-variant: #e2e2e2;
+  --color-primary: #000000;
+  --color-primary-container: #3b3b3b;
+  --color-on-primary: #e2e2e2;
+  --color-on-surface: #1a1c1c;
+  --color-on-surface-variant: #474747;
+  --color-on-background: #1a1c1c;
+  --color-outline: #777777;
+  --color-outline-variant: #c6c6c6;
+  --color-secondary: #5e5e5e;
+  --color-error: #ba1a1a;
+
+  /* Fonts */
+  --font-headline: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
+
+  /* Border Radius */
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+
+  /* Animations */
+  --animate-slide: slide 4s linear infinite;
+  --animate-fade-up: fade-up 0.7s ease forwards;
+  --animate-waveform: waveform 1.2s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+/* Base */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: #f9f9f9;
+  color: #1a1c1c;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass header */
+.glass-header {
+  background: rgba(249, 249, 249, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Ghost border */
+.ghost-border {
+  border: 1px solid rgba(198, 198, 198, 0.3);
+}
+
+/* Ghost border focus */
+.ghost-border:focus {
+  border-color: #000;
+  outline: none;
+}
+
+/* CTA (milled carbon) gradient button */
+.cta-gradient {
+  background: linear-gradient(45deg, #000000, #3b3b3b);
+  transition: opacity 0.2s;
+}
+.cta-gradient:hover {
+  opacity: 0.88;
+}
+
+/* AI Pulse animated line */
+.ai-pulse-line {
+  position: relative;
+  height: 1px;
+  background: rgba(198, 198, 198, 0.2);
+  overflow: hidden;
+}
+.ai-pulse-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 33%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, #000, transparent);
+  animation: slide 4s linear infinite;
+}
+
+/* Waveform bar */
+.wave-bar {
+  display: inline-block;
+  width: 3px;
+  background: #000;
+  border-radius: 2px;
+  transform-origin: bottom;
+  animation: waveform 1.2s ease-in-out infinite;
+}
+
+/* Fade-up utility */
+.fade-up {
+  opacity: 0;
+  animation: fade-up 0.8s ease forwards;
+}
+
+/* Nav link base */
+.nav-link {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  color: #777;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+.nav-link:hover {
+  color: #000;
+}
+.nav-link.active {
+  color: #000;
+  border-bottom: 2px solid #000;
+  padding-bottom: 4px;
+}
+
+/* Feature card hover */
+.feature-card {
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.feature-card:hover {
+  background: #eeeeee;
+  transform: translateY(-2px);
+}
+
+/* Material Symbols */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  vertical-align: middle;
+}
+
+/* Scroll-reveal */
+.scroll-section {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.scroll-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Selection */
+::selection {
+  background: #000;
+  color: #e2e2e2;
+}
+
+/* Progress bar transition */
+.progress-bar {
+  transition: width 1s ease;
+}
+
+/* Voted state */
+.voted {
+  background: #000 !important;
+  color: #e2e2e2 !important;
+}
