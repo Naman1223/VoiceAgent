@@ -39,6 +39,7 @@ class TimeoutVADListener(TranscriptEventListener):
         last_speech_time = time.time()  # Reset timer when a segment concludes
         print(f"Text: {event.line.text}")
         logging.debug(f"Text: {event.line.text}")
+        return event.line.text
 
 
 listener = TimeoutVADListener()
