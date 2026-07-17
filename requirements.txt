@@ -9,3 +9,5 @@ langchain[aws]
 langchain[huggingface]
 langchain-openrouter
 dotenv
+langchain-community
+langchain-core
