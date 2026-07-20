@@ -1,15 +1,12 @@
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
-from langchain_huggingface import ChatHuggingFace
-from langchain_openrouter import ChatOpenRouter
 from dotenv import load_dotenv
 import os
 import logging
-from langchain_community.llms import LlamaCpp
-from langchain_core.prompts import PromptTemplate
-import Settings
+import sys
 from pathlib import Path
+
+# Add project root to sys.path to allow importing Settings when running directly
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import Settings
 
 load_dotenv()
 
@@ -29,19 +26,72 @@ logging.basicConfig(
     level=logging.DEBUG
 )
 
-MODEL_ROUTER = {
-"openai":ChatOpenAI,
-"anthropic":ChatAnthropic,
-"google":ChatGoogleGenerativeAI,
-"huggingface":ChatHuggingFace,
-"openrouter":ChatOpenRouter,
-"local":LlamaCpp
-}
+class VanillaChatModel:
+    """A minimal wrapper to unify the interface of various model providers without LangChain."""
+    def __init__(self, provider, client, model, model_kwargs):
+        self.provider = provider.lower()
+        self.client = client
+        self.model = model
+        self.model_kwargs = model_kwargs
+
+    def invoke(self, prompt: str) -> str:
+        temperature = self.model_kwargs.get("temperature", 0.2)
+        max_tokens = self.model_kwargs.get("max_tokens", 256)
+
+        if self.provider in ["openai", "openrouter"]:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content
+
+        elif self.provider == "anthropic":
+            response = self.client.messages.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return response.content[0].text
+
+        elif self.provider == "google":
+            # For Google, the client is actually the GenerativeModel instance
+            response = self.client.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens
+                }
+            )
+            return response.text
+
+        elif self.provider == "huggingface":
+            response = self.client.chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content
+
+        elif self.provider == "local":
+            # For local, the client is the Llama instance
+            response = self.client(
+                prompt,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            return response["choices"][0]["text"]
+        
+        else:
+            raise ValueError(f"Unsupported provider for invoke: {self.provider}")
 
 def Models_loader():
     try:
         logging.info("Loading models from Model_list.txt")
-        with open(os.path.dirname(__file__)+"/Mod/Model_list.txt", 'r') as file:
+        file_path = Path(__file__).parent / "Mod" / "Model_list.txt"
+        with open(file_path, 'r', encoding='utf-8') as file:
             return [model.strip() for model in file.read().split("\n") if model.strip()]
     except FileNotFoundError:
         logging.error("Error: Model list file not found.")
@@ -59,25 +109,47 @@ def get_chat_model(requested_model_name: str, **kwargs):
         raise ValueError(f"Invalid format inside file: '{requested_model_name}'. Must use 'provider/model'.")
 
     provider, actual_model = requested_model_name.split("/", 1)
-
-    LLMClass = MODEL_ROUTER.get(provider.lower())
-
-    if not LLMClass:
-        logging.error(f"No LangChain handler found for provider: '{provider}'")
-        raise ValueError(f"No LangChain handler found for provider: '{provider}'")
     
     if provider.lower() == "local":
         local_model_path = kwargs.pop("model_path", None) or os.environ.get("LOCAL_MODEL_PATH")
         if not local_model_path:
             local_model_path = input("Enter the full path to your local model: \n")
-        return Settings.local_model_Settings(local_model_path, **kwargs)
+        llm = Settings.local_model_Settings(local_model_path, **kwargs)
+        return VanillaChatModel("local", llm, actual_model, kwargs)
     
-    model_kwargs = Settings.closed_model_settings()
+    model_kwargs = Settings.closed_model_settings(provider)
     model_kwargs.update(kwargs)
+    
+    api_key = model_kwargs.get("api_key")
 
-    if provider.lower() == "google":
-        return LLMClass(model=actual_model, **model_kwargs)
+    if provider.lower() == "openai":
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        return VanillaChatModel("openai", client, actual_model, model_kwargs)
+
     elif provider.lower() == "anthropic":
-        return LLMClass(model_name=actual_model, **model_kwargs)
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        return VanillaChatModel("anthropic", client, actual_model, model_kwargs)
+
+    elif provider.lower() == "google":
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        client = genai.GenerativeModel(actual_model)
+        return VanillaChatModel("google", client, actual_model, model_kwargs)
+
+    elif provider.lower() == "huggingface":
+        from huggingface_hub import InferenceClient
+        client = InferenceClient(model=actual_model, token=api_key)
+        return VanillaChatModel("huggingface", client, actual_model, model_kwargs)
+
+    elif provider.lower() == "openrouter":
+        from openai import OpenAI
+        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        return VanillaChatModel("openrouter", client, actual_model, model_kwargs)
+
     else:
-        return LLMClass(model=actual_model, **model_kwargs)
+        logging.error(f"No handler found for provider: '{provider}'")
+        raise ValueError(f"No handler found for provider: '{provider}'")
+
+

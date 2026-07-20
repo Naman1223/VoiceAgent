@@ -17,4 +17,8 @@ dependencies = [
     "langchain-core>=1.4.9",
     "llama-cpp-python>=0.3.34",
     "langchain-nvidia-ai-endpoints>=1.4.3",
+    "openai>=2.45.0",
+    "anthropic>=0.116.0",
+    "google-generativeai>=0.8.6",
+    "huggingface-hub>=1.23.0",
 ]

@@ -4,10 +4,11 @@ langgraph
 langchain-openai
 langchain-google-genai
 pydantic
-langchain[anthropic]
-langchain[aws]
-langchain[huggingface]
-langchain-openrouter
+openai 
+anthropic 
+google-generativeai 
+huggingface_hub 
+llama-cpp-python
 dotenv
 langchain-community
 langchain-core
