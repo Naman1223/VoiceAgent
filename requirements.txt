@@ -11,3 +11,4 @@ langchain-openrouter
 dotenv
 langchain-community
 langchain-core
+langchain-nvidia-ai-endpoints

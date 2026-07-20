@@ -16,4 +16,5 @@ dependencies = [
     "langchain-community>=0.4.2",
     "langchain-core>=1.4.9",
     "llama-cpp-python>=0.3.34",
+    "langchain-nvidia-ai-endpoints>=1.4.3",
 ]

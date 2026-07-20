@@ -14,9 +14,10 @@ from pathlib import Path
 load_dotenv()
 
 try:
-    folder = Path("Logs")
+    base_dir = Path(__file__).resolve().parent.parent
+    folder = base_dir / "Logs"
     folder.mkdir(parents=True, exist_ok=True)
-    log_kwargs = {"filename": "Logs/Models.log", "filemode": "a"}
+    log_kwargs = {"filename": str(folder / "Models.log"), "filemode": "a"}
 except Exception as e:
     print(f"Warning: Could not create Logs folder. Logging to console instead.")
     log_kwargs = {}
@@ -65,10 +66,18 @@ def get_chat_model(requested_model_name: str, **kwargs):
         logging.error(f"No LangChain handler found for provider: '{provider}'")
         raise ValueError(f"No LangChain handler found for provider: '{provider}'")
     
+    if provider.lower() == "local":
+        local_model_path = kwargs.pop("model_path", None) or os.environ.get("LOCAL_MODEL_PATH")
+        if not local_model_path:
+            local_model_path = input("Enter the full path to your local model: \n")
+        return Settings.local_model_Settings(local_model_path, **kwargs)
+    
+    model_kwargs = Settings.closed_model_settings()
+    model_kwargs.update(kwargs)
+
     if provider.lower() == "google":
-        return LLMClass(model=actual_model, **kwargs)
-    elif provider.lower() == "local":
-        local_model_path = input("Enter the full path to your local model: \n")
-        return Settings.local_model_Settings(local_model_path)
+        return LLMClass(model=actual_model, **model_kwargs)
+    elif provider.lower() == "anthropic":
+        return LLMClass(model_name=actual_model, **model_kwargs)
     else:
-        return LLMClass(model=actual_model, **kwargs)
+        return LLMClass(model=actual_model, **model_kwargs)
