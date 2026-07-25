@@ -34,6 +34,146 @@ class VanillaChatModel:
         self.model = model
         self.model_kwargs = model_kwargs
 
+    def chat_with_tools(self, messages: list, tools: list) -> dict:
+        """
+        Calls the model with tool-calling support and returns a unified response dict:
+        {
+            "content": str | None,
+            "tool_calls": [ {"id", "name", "arguments": dict} ] | None,
+            "raw": <provider-specific message object>
+        }
+        `tools` should be in OpenAI function-call format:
+        [{"type": "function", "function": {"name", "description", "parameters"}}]
+        """
+        if self.provider in ["openai", "openrouter", "grok", "groq"]:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=self.model_kwargs.get("temperature", 0.1)
+            )
+            msg = response.choices[0].message
+            tool_calls = None
+            if msg.tool_calls:
+                tool_calls = [
+                    {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
+                    for tc in msg.tool_calls
+                ]
+            return {"content": msg.content, "tool_calls": tool_calls, "raw": msg}
+
+        elif self.provider == "google":
+            from google import genai
+            from google.genai import types as genai_types
+
+            # Convert OpenAI-style tool defs to Google FunctionDeclaration
+            google_tools = []
+            for t in tools:
+                fn = t["function"]
+                google_tools.append(
+                    genai_types.Tool(
+                        function_declarations=[
+                            genai_types.FunctionDeclaration(
+                                name=fn["name"],
+                                description=fn["description"],
+                                parameters=fn.get("parameters", {}),
+                            )
+                        ]
+                    )
+                )
+
+            # Convert message history to Google Contents format
+            google_contents = []
+            for m in messages:
+                role = m["role"]
+                if role == "user":
+                    google_contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=m["content"])]))
+                elif role == "assistant" or role == "model":
+                    raw = m.get("raw")
+                    if raw is not None:
+                        google_contents.append(raw)  # Already a Google Content object
+                    else:
+                        google_contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text=m.get("content", ""))]))
+                elif role == "tool":
+                    google_contents.append(
+                        genai_types.Content(
+                            role="user",
+                            parts=[genai_types.Part(
+                                function_response=genai_types.FunctionResponse(
+                                    name=m["name"],
+                                    response={"result": m["content"]}
+                                )
+                            )]
+                        )
+                    )
+
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=google_contents,
+                config=genai_types.GenerateContentConfig(
+                    tools=google_tools,
+                    temperature=self.model_kwargs.get("temperature", 0.1),
+                )
+            )
+
+            candidate = response.candidates[0]
+            content_text = None
+            tool_calls = None
+
+            for part in candidate.content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    fc = part.function_call
+                    if tool_calls is None:
+                        tool_calls = []
+                    tool_calls.append({
+                        "id": fc.name,  # Google doesn't use IDs; use name as stand-in
+                        "name": fc.name,
+                        "arguments": dict(fc.args) if fc.args else {}
+                    })
+                elif hasattr(part, "text") and part.text:
+                    content_text = part.text
+
+            return {"content": content_text, "tool_calls": tool_calls, "raw": candidate.content}
+
+        elif self.provider == "anthropic":
+            # Convert OpenAI tool format to Anthropic format
+            anthropic_tools = [
+                {
+                    "name": t["function"]["name"],
+                    "description": t["function"]["description"],
+                    "input_schema": t["function"].get("parameters", {})
+                }
+                for t in tools
+            ]
+            # Filter system messages
+            system_msg = None
+            filtered = []
+            for m in messages:
+                if m["role"] == "system":
+                    system_msg = m["content"]
+                else:
+                    filtered.append({"role": m["role"], "content": m["content"]})
+
+            kwargs = {"model": self.model, "messages": filtered, "tools": anthropic_tools,
+                     "max_tokens": self.model_kwargs.get("max_tokens", 4096)}
+            if system_msg:
+                kwargs["system"] = system_msg
+            response = self.client.messages.create(**kwargs)
+
+            content_text = None
+            tool_calls = None
+            for block in response.content:
+                if block.type == "text":
+                    content_text = block.text
+                elif block.type == "tool_use":
+                    if tool_calls is None:
+                        tool_calls = []
+                    tool_calls.append({"id": block.id, "name": block.name, "arguments": block.input})
+            return {"content": content_text, "tool_calls": tool_calls, "raw": response}
+
+        else:
+            raise ValueError(f"Tool-calling not supported for provider: {self.provider}")
+
     def invoke(self, prompt: str) -> str:
         temperature = self.model_kwargs.get("temperature")
         max_tokens = self.model_kwargs.get("max_tokens")

@@ -79,3 +79,7 @@ tool_execute_tool = Tools(
     input_schema=EXECUTE_DYNAMIC_TOOL_SCHEMA,
     func=execute_dynamic_tool
 )
+
+# Register the meta-tools into the registry so they can actually be executed!
+register_tool(tool_query_tool)
+register_tool(tool_execute_tool)
