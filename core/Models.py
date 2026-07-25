@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-# Add project root to sys.path to allow importing Settings when running directly
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import Settings
 
@@ -35,10 +35,10 @@ class VanillaChatModel:
         self.model_kwargs = model_kwargs
 
     def invoke(self, prompt: str) -> str:
-        temperature = self.model_kwargs.get("temperature", 0.2)
-        max_tokens = self.model_kwargs.get("max_tokens", 256)
+        temperature = self.model_kwargs.get("temperature")
+        max_tokens = self.model_kwargs.get("max_tokens")
 
-        if self.provider in ["openai", "openrouter"]:
+        if self.provider in ["openai", "openrouter", "grok", "groq"]:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
@@ -57,13 +57,14 @@ class VanillaChatModel:
             return response.content[0].text
 
         elif self.provider == "google":
-            # For Google, the client is actually the GenerativeModel instance
-            response = self.client.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens
-                }
+            from google import genai
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                )
             )
             return response.text
 
@@ -115,7 +116,8 @@ def get_chat_model(requested_model_name: str, **kwargs):
         if not local_model_path:
             local_model_path = input("Enter the full path to your local model: \n")
         llm = Settings.local_model_Settings(local_model_path, **kwargs)
-        return VanillaChatModel("local", llm, actual_model, kwargs)
+        gen_kwargs = Settings.local_generation_settings(**kwargs)
+        return VanillaChatModel("local", llm, actual_model, gen_kwargs)
     
     model_kwargs = Settings.closed_model_settings(provider)
     model_kwargs.update(kwargs)
@@ -133,9 +135,8 @@ def get_chat_model(requested_model_name: str, **kwargs):
         return VanillaChatModel("anthropic", client, actual_model, model_kwargs)
 
     elif provider.lower() == "google":
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        client = genai.GenerativeModel(actual_model)
+        from google import genai
+        client = genai.Client(api_key=api_key)
         return VanillaChatModel("google", client, actual_model, model_kwargs)
 
     elif provider.lower() == "huggingface":
@@ -147,6 +148,16 @@ def get_chat_model(requested_model_name: str, **kwargs):
         from openai import OpenAI
         client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         return VanillaChatModel("openrouter", client, actual_model, model_kwargs)
+
+    elif provider.lower() == "grok":
+        from openai import OpenAI
+        client = OpenAI(base_url="https://api.x.ai/v1", api_key=api_key)
+        return VanillaChatModel("grok", client, actual_model, model_kwargs)
+
+    elif provider.lower() == "groq":
+        from openai import OpenAI
+        client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
+        return VanillaChatModel("groq", client, actual_model, model_kwargs)
 
     else:
         logging.error(f"No handler found for provider: '{provider}'")

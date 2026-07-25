@@ -8,26 +8,23 @@ def local_model_Settings(model_path: str, **kwargs):
         "n_batch": 512,
         "n_gpu_layers": -1,
         "verbose": False,
-        "temperature": 0.3,
-        "repeat_penalty": 1.1,
     }
-    # Separate Llama instantiation parameters from generation parameters if needed,
-    # but Llama constructor takes model_path, n_ctx, n_batch, n_gpu_layers, verbose, etc.
-    # We will pass relevant kwargs to Llama and return it.
-    settings.update(kwargs)
-    
-    # max_tokens and streaming are typically generation params, we can store them separately or ignore here.
-    if "max_tokens" in settings:
-        del settings["max_tokens"]
-    if "streaming" in settings:
-        del settings["streaming"]
-    if "temperature" in settings:
-        del settings["temperature"]
-    if "repeat_penalty" in settings:
-        del settings["repeat_penalty"]
+    # Only update with kwargs that are meant for Llama initialization
+    for key in ["n_ctx", "n_batch", "n_gpu_layers", "verbose"]:
+        if key in kwargs:
+            settings[key] = kwargs[key]
 
     llm = Llama(**settings)
     return llm
+
+def local_generation_settings(**kwargs):
+    settings = {
+        "temperature": 0.3,
+        "max_tokens": 256,
+        "repeat_penalty": 1.1,
+    }
+    settings.update(kwargs)
+    return settings
 
 def get_api_key(provider: str) -> str:
     """Router for API keys based on the provider."""
@@ -45,6 +42,10 @@ def get_api_key(provider: str) -> str:
         return os.environ.get("HUGGINGFACEHUB_API_TOKEN") or os.environ.get("HF_TOKEN")
     elif provider == "openrouter":
         return os.environ.get("OPENROUTER_API_KEY")
+    elif provider == "grok":
+        return os.environ.get("XAI_API_KEY") or os.environ.get("GROK_API_KEY")
+    elif provider == "groq":
+        return os.environ.get("GROQ_API_KEY")
     return None
 
 def closed_model_settings(provider: str = None):
