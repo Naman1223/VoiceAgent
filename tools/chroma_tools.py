@@ -29,7 +29,7 @@ def register_tool(tool: Tools):
         ids=[tool.name]
     )
 
-def query_chromadb_for_tools(query: str, n_results: int = 3) -> List[Dict[str, Any]]:
+def query_chromadb_for_tools(query: str, n_results: int = 2) -> List[Dict[str, Any]]:
     """
     Searches ChromaDB for the most relevant tools based on the user's query.
     Returns the tool names, descriptions, and schemas so the LLM knows how to call them.

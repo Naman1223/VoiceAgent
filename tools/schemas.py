@@ -8,7 +8,7 @@ FIND_RELEVANT_TOOLS_SCHEMA = {
         "n_results": {
             "type": "integer",
             "description": "The number of top tools to retrieve.",
-            "default": 3
+            "default": 2
         }
     },
     "required": ["query"]

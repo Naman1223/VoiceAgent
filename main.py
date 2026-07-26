@@ -5,13 +5,25 @@ from tools.chroma_tools import tool_query_tool, tool_execute_tool, TOOL_REGISTRY
 
 import tools.web_tools 
 
-load_dotenv() 
+load_dotenv()
+
+SYSTEM_PROMPT = """
+You are VoxCode, a helpful AI agent with access to a dynamic tool registry.
+You can search for tools using `find_relevant_tools` and then execute them using `execute_dynamic_tool`.
+
+Guidelines:
+- Always search for the most relevant tool before attempting a task.
+- Pass arguments to tools exactly as their schemas describe.
+- If a tool call fails, report the error clearly and do not retry endlessly.
+- Be concise. Avoid unnecessary commentary.
+"""
 
 def run_agent(prompt: str):
-    model = get_chat_model("google/gemini-3.5-flash")
+    model = get_chat_model("groq/llama-3.3-70b-versatile")
     
-    available_tools = [tool_query_tool, tool_execute_tool]
-    openai_tools = [
+    CACHED_TOOLS = [tool_query_tool, tool_execute_tool]
+    
+    _cached_tools_openai = [
         {
             "type": "function",
             "function": {
@@ -20,8 +32,12 @@ def run_agent(prompt: str):
                 "parameters": t.input_schema
             }
         }
-        for t in available_tools
+        for t in CACHED_TOOLS
     ]
+    
+    # In the future, dynamically added tools can be appended here
+    _all_tools_openai = list(_cached_tools_openai)
+
 
     messages = [{"role": "user", "content": prompt}]
     print(f"User: {prompt}\n")
@@ -29,7 +45,12 @@ def run_agent(prompt: str):
     # 2. The Tool-Calling Loop
     while True:
         # Call the LLM via unified provider-agnostic method
-        response = model.chat_with_tools(messages=messages, tools=openai_tools)
+        response = model.chat_with_tools(
+            messages=messages, 
+            tools=_all_tools_openai, 
+            cached_tools=_cached_tools_openai,
+            system_prompt=SYSTEM_PROMPT
+        )
         
         # If the LLM has a normal text response, print it
         if response["content"]:
@@ -67,7 +88,6 @@ def run_agent(prompt: str):
 
 if __name__ == "__main__":
     try:
-        # Let's test if the AI can use the Chroma tools to find the Chrome tool and run it!
-        run_agent("Find a tool that can open a website, and then use it to open https://github.com/Naman1223")
+        run_agent("What is the price of one share of Apple?")
     except Exception as e:
         print(f"Failed to run: {e}")

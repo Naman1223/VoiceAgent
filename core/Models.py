@@ -3,7 +3,8 @@ import os
 import logging
 import sys
 from pathlib import Path
-
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import Settings
@@ -26,15 +27,23 @@ logging.basicConfig(
     level=logging.DEBUG
 )
 
+@dataclass
 class VanillaChatModel:
     """A minimal wrapper to unify the interface of various model providers without LangChain."""
-    def __init__(self, provider, client, model, model_kwargs):
-        self.provider = provider.lower()
-        self.client = client
-        self.model = model
-        self.model_kwargs = model_kwargs
+    provider: str
+    client: Any
+    model: str
+    model_kwargs: dict
+    # Internal cache name for Google CachedContent; managed automatically.
+    _google_cache_name: Optional[str] = field(default=None, repr=False)
+    # Token count to keep in llama.cpp KV cache
+    _local_n_keep: int = field(default=0, repr=False)
 
-    def chat_with_tools(self, messages: list, tools: list) -> dict:
+    def __post_init__(self):
+        self.provider = self.provider.lower()
+
+
+    def chat_with_tools(self, messages: list, tools: list, cached_tools: Optional[list] = None, system_prompt: Optional[str] = None) -> dict:
         """
         Calls the model with tool-calling support and returns a unified response dict:
         {
@@ -44,11 +53,28 @@ class VanillaChatModel:
         }
         `tools` should be in OpenAI function-call format:
         [{"type": "function", "function": {"name", "description", "parameters"}}]
+        `system_prompt` is cached on the first call for supported providers (Anthropic, Google).
         """
         if self.provider in ["openai", "openrouter", "grok", "groq"]:
+            # OpenAI auto-caches prompts >1024 tokens server-side; we just prepend the
+            # system prompt as the first message so it is included in the cached prefix.
+            # Using `cached_tools` isn't strictly necessary here as OpenAI hashes everything 
+            # sequentially, but we pass `tools` to the API.
+            final_messages = []
+            if system_prompt:
+                final_messages.append({"role": "system", "content": system_prompt})
+                
+            for m in messages:
+                if m["role"] == "assistant" and m.get("raw") is not None and hasattr(m["raw"], "model_dump"):
+                    # OpenAI's SDK returns a Pydantic model for messages, which we can dump back to dict
+                    final_messages.append(m["raw"].model_dump(exclude_none=True))
+                else:
+                    # Strip unsupported keys like 'raw' for standard API payload
+                    final_messages.append({k: v for k, v in m.items() if k not in ("raw", "tool_calls" if not m.get("tool_calls") else "")})
+
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=messages,
+                messages=final_messages,
                 tools=tools,
                 tool_choice="auto",
                 temperature=self.model_kwargs.get("temperature", 0.1)
@@ -66,7 +92,7 @@ class VanillaChatModel:
             from google import genai
             from google.genai import types as genai_types
 
-            # Convert OpenAI-style tool defs to Google FunctionDeclaration
+            # --- Build Google-native tool declarations ---
             google_tools = []
             for t in tools:
                 fn = t["function"]
@@ -82,13 +108,58 @@ class VanillaChatModel:
                     )
                 )
 
-            # Convert message history to Google Contents format
+            # --- Build Google-native tool declarations for CACHE ---
+            _tools_to_cache = cached_tools if cached_tools is not None else tools
+            google_cached_tools = []
+            for t in _tools_to_cache:
+                fn = t["function"]
+                google_cached_tools.append(
+                    genai_types.Tool(
+                        function_declarations=[
+                            genai_types.FunctionDeclaration(
+                                name=fn["name"],
+                                description=fn["description"],
+                                parameters=fn.get("parameters", {}),
+                            )
+                        ]
+                    )
+                )
+
+            # --- KV Cache: create CachedContent on the first call, reuse on subsequent calls ---
+            # Google requires >=4096 tokens in the cached prefix; we fall back gracefully if not met.
+            gen_config_kwargs: dict = {"temperature": self.model_kwargs.get("temperature", 0.1)}
+
+            if system_prompt and not self._google_cache_name:
+                try:
+                    cached = self.client.caches.create(
+                        model=self.model,
+                        config=genai_types.CreateCachedContentConfig(
+                            system_instruction=system_prompt,
+                            tools=google_cached_tools,
+                            ttl="300s",  # Cache lives for 5 minutes
+                        )
+                    )
+                    self._google_cache_name = cached.name
+                    logging.info(f"Google CachedContent created: {cached.name}")
+                except Exception as e:
+                    logging.warning(f"Google CachedContent creation failed (token minimum not met?), falling back to uncached: {e}")
+
+            if self._google_cache_name:
+                # Use the pre-computed cached prefix; tools and system prompt are already embedded.
+                gen_config_kwargs["cached_content"] = self._google_cache_name
+            else:
+                # Fallback: pass system instruction and tools directly (uncached).
+                gen_config_kwargs["tools"] = google_tools
+                if system_prompt:
+                    gen_config_kwargs["system_instruction"] = system_prompt
+
+            # --- Convert message history to Google Contents format ---
             google_contents = []
             for m in messages:
                 role = m["role"]
                 if role == "user":
                     google_contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=m["content"])]))
-                elif role == "assistant" or role == "model":
+                elif role in ("assistant", "model"):
                     raw = m.get("raw")
                     if raw is not None:
                         google_contents.append(raw)  # Already a Google Content object
@@ -110,10 +181,7 @@ class VanillaChatModel:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=google_contents,
-                config=genai_types.GenerateContentConfig(
-                    tools=google_tools,
-                    temperature=self.model_kwargs.get("temperature", 0.1),
-                )
+                config=genai_types.GenerateContentConfig(**gen_config_kwargs)
             )
 
             candidate = response.candidates[0]
@@ -136,28 +204,44 @@ class VanillaChatModel:
             return {"content": content_text, "tool_calls": tool_calls, "raw": candidate.content}
 
         elif self.provider == "anthropic":
-            # Convert OpenAI tool format to Anthropic format
-            anthropic_tools = [
-                {
+            # Convert OpenAI tool format to Anthropic format.
+            anthropic_tools = []
+            _tools_to_cache = cached_tools if cached_tools is not None else tools
+            cache_cutoff_name = _tools_to_cache[-1]["function"]["name"] if _tools_to_cache else None
+
+            for t in tools:
+                anth_t = {
                     "name": t["function"]["name"],
                     "description": t["function"]["description"],
                     "input_schema": t["function"].get("parameters", {})
                 }
-                for t in tools
-            ]
-            # Filter system messages
-            system_msg = None
+                if t["function"]["name"] == cache_cutoff_name:
+                    anth_t["cache_control"] = {"type": "ephemeral"}
+                anthropic_tools.append(anth_t)
+
+            # Determine system prompt: prefer explicit system_prompt arg, fall back to
+            # a system-role message already present in the messages list.
+            system_msg = system_prompt
             filtered = []
             for m in messages:
-                if m["role"] == "system":
+                if m["role"] == "system" and not system_msg:
                     system_msg = m["content"]
                 else:
                     filtered.append({"role": m["role"], "content": m["content"]})
 
-            kwargs = {"model": self.model, "messages": filtered, "tools": anthropic_tools,
-                     "max_tokens": self.model_kwargs.get("max_tokens", 4096)}
+            kwargs: dict = {
+                "model": self.model,
+                "messages": filtered,
+                "tools": anthropic_tools,
+                "max_tokens": self.model_kwargs.get("max_tokens", 4096),
+            }
             if system_msg:
-                kwargs["system"] = system_msg
+                # Wrap in a content block with cache_control so the system prompt is
+                # also part of the cached prefix alongside the tool schemas.
+                kwargs["system"] = [
+                    {"type": "text", "text": system_msg, "cache_control": {"type": "ephemeral"}}
+                ]
+
             response = self.client.messages.create(**kwargs)
 
             content_text = None
@@ -170,6 +254,46 @@ class VanillaChatModel:
                         tool_calls = []
                     tool_calls.append({"id": block.id, "name": block.name, "arguments": block.input})
             return {"content": content_text, "tool_calls": tool_calls, "raw": response}
+
+        elif self.provider == "local":
+            import json
+            final_messages = messages
+            if system_prompt:
+                final_messages = [{"role": "system", "content": system_prompt}] + messages
+            
+            # Use llama.cpp's chat_completion
+            kwargs = {
+                "messages": final_messages,
+                "temperature": self.model_kwargs.get("temperature", 0.1)
+            }
+            if tools:
+                kwargs["tools"] = tools
+
+            if self._local_n_keep == 0 and system_prompt:
+                # Naively format the system prompt and cached tools into a text block
+                # to measure how many tokens the static prefix occupies.
+                _tools_to_cache = cached_tools if cached_tools is not None else tools
+                prefix_str = f"<system>\n{system_prompt}\nTools:\n{json.dumps(_tools_to_cache)}\n</system>\n"
+                tokens = self.client.tokenize(prefix_str.encode("utf-8"))
+                self._local_n_keep = len(tokens)
+                logging.info(f"llama.cpp KV cache initialized with n_keep={self._local_n_keep}")
+
+            if self._local_n_keep > 0:
+                kwargs["extra_body"] = {"n_keep": self._local_n_keep}
+
+            response = self.client.create_chat_completion(**kwargs)
+            
+            msg = response["choices"][0]["message"]
+            content = msg.get("content")
+            
+            tool_calls = None
+            if "tool_calls" in msg and msg["tool_calls"]:
+                tool_calls = [
+                    {"id": tc["id"], "name": tc["function"]["name"], "arguments": tc["function"]["arguments"]}
+                    for tc in msg["tool_calls"]
+                ]
+            
+            return {"content": content, "tool_calls": tool_calls, "raw": msg}
 
         else:
             raise ValueError(f"Tool-calling not supported for provider: {self.provider}")
