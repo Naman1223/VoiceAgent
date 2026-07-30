@@ -5,9 +5,10 @@ import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, Optional
+import Settings
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-import Settings
+
 
 load_dotenv()
 
@@ -69,8 +70,16 @@ class VanillaChatModel:
                     # OpenAI's SDK returns a Pydantic model for messages, which we can dump back to dict
                     final_messages.append(m["raw"].model_dump(exclude_none=True))
                 else:
-                    # Strip unsupported keys like 'raw' for standard API payload
-                    final_messages.append({k: v for k, v in m.items() if k not in ("raw", "tool_calls" if not m.get("tool_calls") else "")})
+                    # Strip internal keys like 'raw' and empty optional fields for standard API payload
+                    cleaned_msg = {}
+                    for k, v in m.items():
+                        if k == "raw":
+                            continue
+                        if k == "tool_calls" and not v:
+                            continue
+                        cleaned_msg[k] = v
+                    final_messages.append(cleaned_msg)
+
 
             response = self.client.chat.completions.create(
                 model=self.model,

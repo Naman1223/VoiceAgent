@@ -39,3 +39,14 @@ OPEN_CHROME_SCHEMA = {
     },
     "required": ["url"]
 }
+
+TERMINAL_SCHEMA ={
+    "type": "object",
+    "properties": {
+        "command":{
+            "type": "string",
+            "description": "The command to execute in the terminal."
+        }
+    },
+    "required": ["command"]
+}

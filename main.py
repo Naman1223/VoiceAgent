@@ -4,6 +4,7 @@ from core.Models import get_chat_model
 from tools.chroma_tools import tool_query_tool, tool_execute_tool, TOOL_REGISTRY
 
 import tools.web_tools 
+import tools.OS_tools
 
 load_dotenv()
 
@@ -88,6 +89,6 @@ def run_agent(prompt: str):
 
 if __name__ == "__main__":
     try:
-        run_agent("What is the price of one share of Apple?")
+        run_agent("Create a file on my desktop with name Naman")
     except Exception as e:
         print(f"Failed to run: {e}")
