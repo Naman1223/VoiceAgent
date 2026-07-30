@@ -145,7 +145,7 @@ class VanillaChatModel:
                         config=genai_types.CreateCachedContentConfig(
                             system_instruction=system_prompt,
                             tools=google_cached_tools,
-                            ttl="300s",  # Cache lives for 5 minutes
+                            ttl="600s",  # Cache lives for 5 minutes
                         )
                     )
                     self._google_cache_name = cached.name

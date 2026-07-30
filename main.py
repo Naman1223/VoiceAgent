@@ -2,9 +2,8 @@ from dotenv import load_dotenv
 import json
 from core.Models import get_chat_model
 from tools.chroma_tools import tool_query_tool, tool_execute_tool, TOOL_REGISTRY
-
-import tools.web_tools 
 import tools.OS_tools
+import tools.web_tools 
 
 load_dotenv()
 
@@ -22,7 +21,7 @@ Guidelines:
 def run_agent(prompt: str):
     model = get_chat_model("groq/llama-3.3-70b-versatile")
     
-    CACHED_TOOLS = [tool_query_tool, tool_execute_tool]
+    CACHED_TOOLS = [tool_query_tool, tool_execute_tool , tools.OS_tools.terminal_tool]
     
     _cached_tools_openai = [
         {
@@ -89,6 +88,6 @@ def run_agent(prompt: str):
 
 if __name__ == "__main__":
     try:
-        run_agent("Create a file on my desktop with name Naman")
+        run_agent("Open the calculator and add 2+2 and tell me the result")
     except Exception as e:
         print(f"Failed to run: {e}")
