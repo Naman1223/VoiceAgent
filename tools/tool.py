@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 import json
 import subprocess
 from dataclasses import dataclass
@@ -13,7 +13,7 @@ class Tools:
     func: Callable
 
     @property
-    def tool_schema(self) -> dict[str,Any]:
+    def tool_schema(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,

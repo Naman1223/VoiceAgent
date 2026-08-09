@@ -57,10 +57,6 @@ class VanillaChatModel:
         `system_prompt` is cached on the first call for supported providers (Anthropic, Google).
         """
         if self.provider in ["openai", "openrouter", "grok", "groq"]:
-            # OpenAI auto-caches prompts >1024 tokens server-side; we just prepend the
-            # system prompt as the first message so it is included in the cached prefix.
-            # Using `cached_tools` isn't strictly necessary here as OpenAI hashes everything 
-            # sequentially, but we pass `tools` to the API.
             final_messages = []
             if system_prompt:
                 final_messages.append({"role": "system", "content": system_prompt})
@@ -86,7 +82,7 @@ class VanillaChatModel:
                 messages=final_messages,
                 tools=tools,
                 tool_choice="auto",
-                temperature=self.model_kwargs.get("temperature", 0.1)
+                temperature=self.model_kwargs.get("temperature", 0.1),
             )
             msg = response.choices[0].message
             tool_calls = None
@@ -95,6 +91,21 @@ class VanillaChatModel:
                     {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
                     for tc in msg.tool_calls
                 ]
+            elif msg.content:
+                import re
+                pattern = r"<function[=/](\w+)>(.*?)</function>"
+                matches = re.findall(pattern, msg.content, re.DOTALL)
+                if matches:
+                    tool_calls = []
+                    for i, (func_name, func_args) in enumerate(matches):
+                        tool_calls.append({
+                            "id": f"call_{func_name}_{i}",
+                            "name": func_name,
+                            "arguments": func_args.strip()
+                        })
+                    cleaned_content = re.sub(pattern, "", msg.content, flags=re.DOTALL).strip()
+                    return {"content": cleaned_content if cleaned_content else None, "tool_calls": tool_calls, "raw": msg}
+
             return {"content": msg.content, "tool_calls": tool_calls, "raw": msg}
 
         elif self.provider == "google":

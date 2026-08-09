@@ -16,7 +16,7 @@ def run_terminal_commands(command: str) -> str:
         output = result.stdout
         if result.stderr:
             output += f"\n[STDERR]\n{result.stderr}"
-        return output.strip() if output.strip() else "Command executed successfully with no output."
+        return output.strip() if output.strip() else f"Command '{command}' executed successfully."
     except Exception as e:
         return f"Error executing command: {str(e)}"
 
@@ -27,4 +27,4 @@ terminal_tool = Tools(
     func=run_terminal_commands
 )
 
-register_tool(terminal_tool)
+register_tool(terminal_tool)
