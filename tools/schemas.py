@@ -50,3 +50,19 @@ TERMINAL_SCHEMA ={
     },
     "required": ["command"]
 }
+
+SEARCH_MEMORY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {
+            "type": "string",
+            "description": "The query to search the long-term memory for past conversations or context."
+        },
+        "n_results": {
+            "type": "integer",
+            "description": "The number of past interactions to retrieve.",
+            "default": 3
+        }
+    },
+    "required": ["query"]
+}

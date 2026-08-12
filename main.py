@@ -4,7 +4,7 @@ from core.Models import get_chat_model
 from tools.chroma_tools import tool_query_tool, tool_execute_tool, TOOL_REGISTRY
 import tools.OS_tools
 import tools.web_tools 
-from Memory.Long_memory import append_message, fetch_long_memory
+from Memory.Long_memory import append_message, search_memory_tool
 from datetime import datetime
 load_dotenv()
 
@@ -19,51 +19,20 @@ Guidelines:
 - Be concise. Avoid unnecessary commentary.
 
 IMPORTANT - Tool Usage Rules:
-- Only call tools when the user's request requires a real action (e.g. opening an app, running a command, searching the web, reading a file).
-- Do NOT call any tools for conversational messages, greetings, introductions, or questions you can answer directly from knowledge (e.g. "My name is Naman", "Hello", "What is Python?").
+- Only call tools when the user's request requires a real action (e.g. opening an app, running a command, searching the web, reading a file, or fetching past memory).
+- If the user asks about past interactions, previous context, or personal facts (e.g. "what is my name"), you MUST use the `search_memory` tool to fetch the context before answering.
+- Do NOT call any tools for pure chitchat, greetings, or general knowledge questions (e.g. "Hello", "What is Python?").
 - If no tool is needed, respond directly with plain text. Do not look up tools, do not call tool_query_tool, do not call tool_execute_tool unless an actual task demands it.
 """
-
-
-def _needs_tools(model, prompt: str) -> bool:
-    """Fast pre-flight check: ask the model (no tools) if this prompt needs a real action."""
-    classifier_prompt = f"""You are a classifier. Answer with exactly one word: YES or NO.
-
-Does the following user message require taking a real action on the computer 
-(e.g. opening an app, running a command, searching the web, reading/writing a file)?
-
-Respond NO for: greetings, introductions, general questions, chitchat, or anything 
-you can answer from knowledge alone.
-
-User message: "{prompt}"
-
-Answer (YES or NO):"""
-    answer = model.invoke(classifier_prompt).strip().upper()
-    return answer.startswith("YES")
 
 
 def run_agent(prompt: str):
     model = get_chat_model("groq/llama-3.3-70b-versatile")
 
-    # 1. Fetch relevant past memories
-    history_results = fetch_long_memory(prompt, n_results=3)
-    relevant_history = []
-    if history_results and history_results.get("documents"):
-        for doc, meta in zip(history_results["documents"][0], history_results["metadatas"][0]):
-            relevant_history.append(f"[MEMORY - {meta['tool']} - {meta['timestamp']}]: {doc}")
+    context_prompt = "Current Task:\n" + prompt
 
-    context_prompt = "Relevant previous interactions:\n"
-    context_prompt += "\n".join(relevant_history) if relevant_history else "None"
-    context_prompt += "\n\nCurrent Task:\n" + prompt
-
-    # --- Pre-flight: skip tools entirely for conversational prompts ---
-    if not _needs_tools(model, prompt):
-        reply = model.invoke(f"You are VoxCode, a helpful AI assistant.\n{context_prompt}\nAssistant:")
-        print(f"User: {prompt}\n")
-        print(f"AI: {reply}")
-        return
-
-    CACHED_TOOLS = [tool_query_tool, tool_execute_tool , tools.OS_tools.terminal_tool]
+    TOOL_REGISTRY[search_memory_tool.name] = search_memory_tool
+    CACHED_TOOLS = [tool_query_tool, tool_execute_tool, tools.OS_tools.terminal_tool, search_memory_tool]
 
     _cached_tools_openai = [
         {

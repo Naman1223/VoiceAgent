@@ -1,6 +1,8 @@
 import chromadb
 import json
 from datetime import datetime
+from tools.tool import Tools
+from tools.schemas import SEARCH_MEMORY_SCHEMA
 
 chroma_client = chromadb.PersistentClient(path="./database/chroma_db")
 Long_memory = chroma_client.get_or_create_collection(name="Long_Memory")
@@ -31,3 +33,22 @@ def fetch_long_memory(query: str, n_results: int = 5):
         include=["documents", "metadatas", "distances"]
     )
     return results
+
+def search_memory_tool_func(query: str, n_results: int = 3) -> str:
+    """Tool function to search memory and return formatted string."""
+    history_results = fetch_long_memory(query, n_results=n_results)
+    relevant_history = []
+    if history_results and history_results.get("documents"):
+        for doc, meta in zip(history_results["documents"][0], history_results["metadatas"][0]):
+            relevant_history.append(f"[MEMORY - {meta['tool']} - {meta['timestamp']}]: {doc}")
+    
+    if relevant_history:
+        return "Relevant previous interactions:\n" + "\n".join(relevant_history)
+    return "No relevant past memories found."
+
+search_memory_tool = Tools(
+    name="search_memory",
+    description="Searches the AI's long-term memory for past interactions and context. Use this when you need to recall previous conversations or actions.",
+    input_schema=SEARCH_MEMORY_SCHEMA,
+    func=search_memory_tool_func
+)
